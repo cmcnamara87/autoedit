@@ -1,5 +1,6 @@
-import { app, BrowserWindow, Menu, shell } from 'electron';
+import { app, BrowserWindow, Menu, shell, dialog } from 'electron';
 
+console.log('hello this should print when its required!');
 let menu;
 let template;
 let mainWindow = null;
@@ -275,3 +276,14 @@ app.on('ready', async () => {
     mainWindow.setMenu(menu);
   }
 });
+
+function selectDirectory() {
+  return new Promise(resolve => {
+    const folders = dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory']
+    });
+    return resolve(folders);
+  });
+}
+module.exports = {};
+module.exports.selectDirectory = selectDirectory;

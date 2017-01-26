@@ -1,5 +1,37 @@
 @import "~font-awesome/css/font-awesome.css";
+@import "~bootstrap/dist/css/bootstrap.css";
 
+html, body {
+   height: 100%;
+}
+#root {
+  height: 100%;
+}
+div[data-reactroot] {
+  height: 100%;
+}
+.container-fluid.content {
+    padding-top: 50px;
+    height: 100%;
+}
+.container-fluid.content>.row {
+    height: 100%;
+}
+.mainview, .navview, .subview {
+    height: 100%;
+    overflow: auto;
+}
+.navview, .subview {
+    background-color: #eee;
+}
+
+@media (max-width: 767px) {
+    .mainview, .navview, .subview {
+      height: auto;
+    }
+}
+
+/*
 body {
   position: relative;
   color: white;
@@ -36,4 +68,4 @@ a:hover {
   opacity: 1;
   text-decoration: none;
   cursor: pointer;
-}
+}*/
