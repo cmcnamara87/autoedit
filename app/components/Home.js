@@ -63,6 +63,8 @@ export default class Home extends Component {
     this.toggleBad = this.toggleBad.bind(this);
     this.toggleReject = this.toggleReject.bind(this);
     this.loadClips = this.loadClips.bind(this);
+    this.handlePlayVideo = this.handlePlayVideo.bind(this);
+    this.handlePauseVideo = this.handlePauseVideo.bind(this);
 
     document.addEventListener('keydown', (e) => {
       const keyCode = e.keyCode;
@@ -102,6 +104,19 @@ export default class Home extends Component {
     //   console.log('scrolling', this.div.scrollLeft);
     //   this.div.scrollLeft += 70;
     // }, 1000);
+  }
+  handlePlayVideo() {
+    this.video.play();
+    clearInterval(this.interval);
+    this.div.scrollLeft = this.video.currentTime * 70;
+    this.interval = setInterval(() => {
+      console.log('scrolling', this.div.scrollLeft);
+      this.div.scrollLeft += 1;
+    }, 14.28);
+  }
+  handlePauseVideo() {
+    clearInterval(this.interval);
+    this.video.pause();
   }
   handleMoveUp() {
     // mutating state, bleh
@@ -278,7 +293,7 @@ export default class Home extends Component {
   stitchClips() {
     stitcher({
       inputFolder: `${this.state.workingFolder}/good/`,
-      tempFolder: this.state.workingFolder,
+      tempFolder: `${this.state.workingFolder}/temp/`,
       outputFolder: this.state.workingFolder
     });
   }
@@ -296,14 +311,18 @@ export default class Home extends Component {
             controls
             autoPlay
             style={{ width: '100%' }} src={this.state.currentClip.fullPath}
+            ref={(input) => { this.video = input; }}
           />
           }
           {this.state.tab === 'output' &&
           <video
             controls
             style={{ width: '100%' }} src={`${this.state.workingFolder}/merged.mp4`}
+            ref={(input) => { this.video = input; }}
           />
           }
+          <button onClick={this.handlePlayVideo}>Play</button>
+          <button onClick={this.handlePauseVideo}>Pause</button>
         </div>
 
         <button onClick={this.toggleBad}>Show Bad</button>
