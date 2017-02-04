@@ -1,4 +1,29 @@
 const exec = require('child_process').exec;
+const fs = require('fs');
+const path = require('path');
+
+export function readDirPromise(dir) {
+  return new Promise((resolve, reject) => {
+    fs.readdir(dir, (err, files) => {
+      if (err) {
+        return reject(err);
+      }
+      return resolve(files);
+    });
+  });
+}
+
+export function readVideosFromDir(inputFolder) {
+  return readDirPromise(inputFolder).then(files =>
+    files.reduce((acc, file) => {
+      const fileExtension = path.extname(file);
+      if (fileExtension === '.mp4' || fileExtension === '.mov') {
+        acc.push(`${inputFolder}/${file}`);
+      }
+      return acc;
+    }, [])
+  );
+}
 
 export function promiseExec(command) {
   return new Promise((resolve, reject) => {
@@ -44,5 +69,7 @@ export function sequentiallyExecCommands(commands) {
 
 export default {
   promiseExec,
-  sequentiallyExecCommands
+  sequentiallyExecCommands,
+  readDirPromise,
+  readVideosFromDir
 };

@@ -2,6 +2,7 @@ const path = require('path');
 const exec = require('child_process').exec;
 const fs = require('fs');
 const sequentiallyExecCommands = require('./exec').sequentiallyExecCommands;
+const readVideosFromDir = require('./exec').readVideosFromDir;
 
 function deleteFolderRecursive(folderPath) {
   if (!fs.existsSync(folderPath)) {
@@ -18,19 +19,6 @@ function deleteFolderRecursive(folderPath) {
   fs.rmdirSync(folderPath);
 }
 
-function readDirPromise(dir) {
-  return new Promise((resolve, reject) => {
-    console.log('reading dir');
-    fs.readdir(dir, (err, files) => {
-      console.log('got', err, files);
-      if (err) {
-        return reject(err);
-      }
-      return resolve(files);
-    });
-  });
-}
-
 function splitter({ inputFolder, workingFolder, progressHandler = console.log }) {
   const badFolder = `${workingFolder}/bad`;
   const goodFolder = `${workingFolder}/good`;
@@ -45,16 +33,7 @@ function splitter({ inputFolder, workingFolder, progressHandler = console.log })
   fs.mkdirSync(goodFolder);
   fs.mkdirSync(tempFolder);
 
-  return readDirPromise(inputFolder).then(files => {
-    const videos = files.reduce((acc, file) => {
-      const fileExtension = path.extname(file);
-      // TODO add .mov support
-      if (fileExtension === '.mp4') {
-        acc.push(`${inputFolder}/${file}`);
-      }
-      return acc;
-    }, []);
-
+  return readVideosFromDir(inputFolder).then(videos => {
     // convert videos to commands to audio detection
     const audioCommands = videos.map(video => `ffmpeg -i "${video}" -af silencedetect=noise=-30dB:d=0.2 -f null -`);
     progressHandler('Analysing clips for audio quality');
