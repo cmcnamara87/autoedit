@@ -3,6 +3,7 @@
 
 html, body {
    height: 100%;
+   background-color:black;
 }
 #root {
   height: 100%;
@@ -11,7 +12,7 @@ div[data-reactroot] {
   height: 100%;
 }
 .container-fluid.content {
-    padding-top: 50px;
+    /*padding-top: 50px;*/
     height: 100%;
 }
 .container-fluid.content>.row {
@@ -21,8 +22,11 @@ div[data-reactroot] {
     height: 100%;
     overflow: auto;
 }
-.navview, .subview {
+.navview {
     background-color: #eee;
+}
+.subview {
+  background-color: #333;
 }
 
 @media (max-width: 767px) {
