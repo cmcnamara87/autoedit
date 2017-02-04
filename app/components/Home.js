@@ -100,6 +100,10 @@ export default class Home extends Component {
   componentDidMount() {
     this.loadClips();
     console.log('scrolling left', this.div);
+    this.div.addEventListener('scroll', () => {
+      console.log('its scrolling!!!', this.div.scrollLeft / 70);
+      this.video.currentTime = this.div.scrollLeft / 70;
+    });
     // setInterval(() => {
     //   console.log('scrolling', this.div.scrollLeft);
     //   this.div.scrollLeft += 70;
@@ -291,11 +295,11 @@ export default class Home extends Component {
     }).catch(console.error);
   }
   stitchClips() {
-    stitcher({
+    return stitcher({
       inputFolder: `${this.state.workingFolder}/good/`,
       tempFolder: `${this.state.workingFolder}/temp/`,
       outputFolder: this.state.workingFolder
-    });
+    }).then(() => console.log('stiching is done!!!!'));
   }
   render() {
     return (
@@ -316,7 +320,6 @@ export default class Home extends Component {
           }
           {this.state.tab === 'output' &&
           <video
-            controls
             style={{ width: '100%' }} src={`${this.state.workingFolder}/merged.mp4`}
             ref={(input) => { this.video = input; }}
           />
