@@ -1,6 +1,22 @@
 const readVideosFromDir = require('./exec').readVideosFromDir;
 const sequentiallyExecCommands = require('./exec').sequentiallyExecCommands;
 const promiseExec = require('./exec').promiseExec;
+const fs = require('fs');
+
+function deleteFolderRecursive(folderPath) {
+  if (!fs.existsSync(folderPath)) {
+    return;
+  }
+  fs.readdirSync(folderPath).forEach((file) => {
+    const curPath = `${folderPath}/${file}`;
+    if (fs.lstatSync(curPath).isDirectory()) { // recurse
+      deleteFolderRecursive(curPath);
+    } else { // delete file
+      fs.unlinkSync(curPath);
+    }
+  });
+  fs.rmdirSync(folderPath);
+}
 
 function stitcher({
   inputFolder,
@@ -8,6 +24,10 @@ function stitcher({
   outputFolder
 }) {
   return readVideosFromDir(inputFolder).then(files => {
+    // clear temp files
+    deleteFolderRecursive(tempFolder);
+    fs.mkdirSync(tempFolder);
+
     // get temp file paths
     const outputPaths = files.map((path, index) => `${tempFolder}/${index}.ts`);
     // convert to temp files

@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 // import { Link } from 'react-router';
 // import styles from './Home.css';
 import fs from 'fs';
-// import _ from 'lodash';
+import cuid from 'cuid';
 import styled from 'styled-components';
 import _ from 'lodash';
 import { remote } from 'electron';
@@ -32,6 +32,7 @@ const Clips = styled.div`
   bottom: ${props => (props.top ? '100px' : 0)};
   background-color: #333;
   padding: 20px;
+  padding-left: 50%;
 `;
 
 export default class Home extends Component {
@@ -65,6 +66,7 @@ export default class Home extends Component {
     this.loadClips = this.loadClips.bind(this);
     this.handlePlayVideo = this.handlePlayVideo.bind(this);
     this.handlePauseVideo = this.handlePauseVideo.bind(this);
+    this.handleScroll = this.handleScroll.bind(this);
 
     document.addEventListener('keydown', (e) => {
       const keyCode = e.keyCode;
@@ -99,28 +101,49 @@ export default class Home extends Component {
   }
   componentDidMount() {
     this.loadClips();
-    console.log('scrolling left', this.div);
-    this.div.addEventListener('scroll', () => {
-      console.log('its scrolling!!!', this.div.scrollLeft / 70);
-      this.video.currentTime = this.div.scrollLeft / 70;
-    });
-    // setInterval(() => {
-    //   console.log('scrolling', this.div.scrollLeft);
-    //   this.div.scrollLeft += 70;
-    // }, 1000);
+    this.div.addEventListener('scroll', this.handleScroll);
   }
   handlePlayVideo() {
     this.video.play();
     clearInterval(this.interval);
-    this.div.scrollLeft = this.video.currentTime * 70;
+    this.time = 0;
     this.interval = setInterval(() => {
-      console.log('scrolling', this.div.scrollLeft);
-      this.div.scrollLeft += 1;
-    }, 14.28);
+      this.time = this.time + 14;
+      // console.log(this.time);
+      // lets get out all the start and ends for good clips
+      const currentClip = _.find(this.clips, (clip) =>
+        clip.good && clip.startTime <= this.time && this.time <= clip.endTime
+      );
+      if (this.state.currentClip && currentClip && currentClip.id !== this.state.currentClip.id) {
+        this.div.scrollLeft = currentClip.startPos;
+        console.log('new clip', this.div.scrollLeft);
+      } else {
+        this.div.scrollLeft = this.div.scrollLeft + 1;
+        console.log('inc', this.div.scrollLeft);
+      }
+      this.setState({
+        currentClip
+      });
+      this.div.removeEventListener('scroll', this.handleScroll);
+    }, 14);
+  }
+  handleScroll() {
+    console.log('its scrolling!!!', this.div.scrollLeft / 70);
+    this.video.currentTime = this.div.scrollLeft / 70;
+    const currentClip = _.find(this.clips, (clip) =>
+      clip.good &&
+      clip.startPos <= this.div.scrollLeft &&
+      this.div.scrollLeft < clip.startPos + ((clip.duration / 1000) * 70)
+    );
+    this.setState({
+      currentClip
+    });
   }
   handlePauseVideo() {
+    this.time = 0;
     clearInterval(this.interval);
     this.video.pause();
+    this.div.addEventListener('scroll', this.handleScroll);
   }
   handleMoveUp() {
     // mutating state, bleh
@@ -160,6 +183,7 @@ export default class Home extends Component {
     fs.readdir(`${this.state.workingFolder}/good/`, (err, goodFiles) => {
       fs.readdir(`${this.state.workingFolder}/bad/`, (err2, badFiles) => {
         this.clips = goodFiles.map(file => ({
+          id: cuid(),
           fileName: file,
           fullPath: `${this.state.workingFolder}/good/${file}`,
           good: true,
@@ -167,6 +191,7 @@ export default class Home extends Component {
           score: 100
         }))
         .concat(badFiles.map(file => ({
+          id: cuid(),
           fileName: file,
           fullPath: `${this.state.workingFolder}/bad/${file}`,
           good: false,
@@ -175,9 +200,9 @@ export default class Home extends Component {
         })))
         .sort((a, b) => parseInt(a.fileName, 10) - parseInt(b.fileName, 10));
 
-        this.setState({
-          clips: this.clips
-        });
+        // this.setState({
+        //   clips: this.clips
+        // });
 
         // get all the durations
         console.log('clips', this.clips);
@@ -203,6 +228,26 @@ export default class Home extends Component {
             });
           });
           console.log('finsihed analysis clips', this.clips);
+          // this.setState({
+          //   clips: this.clips
+          // });
+          this.clips = this.clips.map((myClip, index) => {
+            const startTime = this.clips
+              .filter((clip, clipIndex) => clip.good && clipIndex < index)
+              .map(clip => clip.duration)
+              .reduce((a, b) => a + b, 0);
+            const startPos = (this.clips
+              .filter((clip, clipIndex) => clip.good && clipIndex < index)
+              .map(clip => clip.duration)
+              .reduce((a, b) => a + b, 0) / 1000) * 70;
+            const endTime = startTime + myClip.duration;
+            return Object.assign({}, myClip, {
+              startTime,
+              endTime,
+              startPos
+            });
+          });
+
           this.setState({
             clips: this.clips
           });
@@ -296,8 +341,8 @@ export default class Home extends Component {
   }
   stitchClips() {
     return stitcher({
-      inputFolder: `${this.state.workingFolder}/good/`,
-      tempFolder: `${this.state.workingFolder}/temp/`,
+      inputFolder: `${this.state.workingFolder}/good`,
+      tempFolder: `${this.state.workingFolder}/temp`,
       outputFolder: this.state.workingFolder
     }).then(() => console.log('stiching is done!!!!'));
   }
@@ -332,18 +377,19 @@ export default class Home extends Component {
         <button onClick={this.handleToggleBadForClip}>Good</button>
         <button onClick={this.handleToggleBadForCurrentClip}>Bad</button>
         { this.state.isShowingBad ? 'show bad' : 'show good'}
+        <pre>{JSON.stringify(this.state.currentClip, null, 2) }</pre>
         <Clips innerRef={(ref) => { this.div = ref; return ref; }}>
           <table>
             <tbody>
               <tr>
                 {this.state.clips.map((clip, index) =>
-                  <td>
+                  <td key={clip.id}>
                     {clip.good &&
                     <Clip
                       tabindex={0 - index}
                       duration={clip.duration}
                       onClick={() => this.selectClip(clip)}
-                      selected={clip === this.state.currentClip}
+                      selected={this.state.currentClip && clip.id === this.state.currentClip.id}
                       onKeyPress={() => console.log('hello world!!!')}
                     />
                     }
@@ -353,12 +399,12 @@ export default class Home extends Component {
               {this.state.isShowingBad &&
               <tr>
                 {this.state.clips.map((clip) =>
-                  <td>
+                  <td key={clip.id}>
                     {!clip.good &&
                     <Clip
                       duration={clip.duration}
                       onClick={() => this.selectClip(clip)}
-                      selected={clip === this.state.currentClip}
+                      selected={this.state.currentClip && clip.id === this.state.currentClip.id}
                     />
                     }
                   </td>
