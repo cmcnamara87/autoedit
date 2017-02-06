@@ -16,13 +16,26 @@ const Clip = styled.a`
   height: 30px;
   width: ${props => (props.duration / 1000) * 70}px;
   padding: 20px;
-  border: 1px solid black;
   cursor: pointer;
-  background-color: ${props => (props.selected ? 'yellow' : '#666')};
+  border-radius: 100px;
   &:hover {
-    background-color: ${props => (props.selected ? 'yellow' : '#FFFFE0')};
+    background-color: yellow;
     text-decoration: none;
   }
+`;
+const Line = styled.a`
+  height: 200px;
+  width: 1px;
+  background-color: red;
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+`;
+const GoodClip = styled(Clip)`
+  background-color: ${props => (props.selected ? 'yellow' : '#4fc5ff')};
+`;
+const BadClip = styled(Clip)`
+  background-color: ${props => (props.selected ? 'yellow' : '#ffb426')};
 `;
 const Clips = styled.div`
   border: 1px solid black;
@@ -54,7 +67,7 @@ export default class Home extends Component {
       currentClip: null,
       workingFolder: '/Users/craig/Desktop/temp2',
       tab: 'output',
-      isShowingBad: false
+      isEditing: false
     };
 
     this.handleOpenFolder = this.handleOpenFolder.bind(this);
@@ -70,13 +83,27 @@ export default class Home extends Component {
 
     document.addEventListener('keydown', (e) => {
       const keyCode = e.keyCode;
+      if (keyCode === 69) { // e
+        // go into edit
+        this.setState({
+          isEditing: !this.state.isEditing
+        });
+        return;
+      }
+      if (keyCode === 32) { // space
+        if (this.state.isPlaying) {
+          this.handlePauseVideo();
+        } else {
+          this.handlePlayVideo();
+        }
+      }
 
       // Right: 39
       if (keyCode === 39 && this.state.currentClip) {
         const currentIndex = this.clips.indexOf(this.state.currentClip);
         // get the next clips
         const nextIndex = _.findIndex(this.clips, (clip, index) =>
-          index > currentIndex && (clip.good === true || this.state.isShowingBad)
+          index > currentIndex && (clip.good === true || this.state.isEditing)
         );
         this.setState({
           currentClip: this.clips[nextIndex]
@@ -104,9 +131,13 @@ export default class Home extends Component {
     this.div.addEventListener('scroll', this.handleScroll);
   }
   handlePlayVideo() {
+    this.div.removeEventListener('scroll', this.handleScroll);
     this.video.play();
+    this.setState({
+      isPlaying: true
+    });
     clearInterval(this.interval);
-    this.time = 0;
+    this.time = this.video.currentTime * 1000; // convert back to ms
     this.interval = setInterval(() => {
       this.time = this.time + 14;
       // console.log(this.time);
@@ -121,10 +152,10 @@ export default class Home extends Component {
         this.div.scrollLeft = this.div.scrollLeft + 1;
         console.log('inc', this.div.scrollLeft);
       }
+      console.log(currentClip);
       this.setState({
         currentClip
       });
-      this.div.removeEventListener('scroll', this.handleScroll);
     }, 14);
   }
   handleScroll() {
@@ -142,6 +173,9 @@ export default class Home extends Component {
   handlePauseVideo() {
     this.time = 0;
     clearInterval(this.interval);
+    this.setState({
+      isPlaying: false
+    });
     this.video.pause();
     this.div.addEventListener('scroll', this.handleScroll);
   }
@@ -163,6 +197,9 @@ export default class Home extends Component {
     });
   }
   handleMoveDown() {
+    if (!this.state.isEditing) {
+      return;
+    }
     // mutating state, bleh
     const newFullPath = `${this.state.workingFolder}/bad/${this.state.currentClip.fileName}`;
     fs.rename(
@@ -176,7 +213,7 @@ export default class Home extends Component {
     this.state.currentClip.good = false;
     this.state.currentClip.fullPath = newFullPath;
     this.setState({
-      clips: this.clips
+      clips: this.clips,
     });
   }
   loadClips() {
@@ -295,10 +332,10 @@ export default class Home extends Component {
     });
   }
   toggleBad() {
-    const isShowingBad = !this.state.isShowingBad;
+    const isEditing = !this.state.isEditing;
     console.log('toggle bad');
     this.setState({
-      isShowingBad
+      isEditing
     });
   }
   selectClip(clip) {
@@ -351,7 +388,10 @@ export default class Home extends Component {
       <div style={{ height: '100%' }}>
         <div>
           Header
-          <button onClick={this.handleOpenFolder}>Open Folder</button>
+          <button className="btn btn-default" onClick={this.handleOpenFolder}>Open Folder</button>
+          <button className="btn btn-default" onClick={this.toggleBad}>Edit</button>
+          <button className="btn btn-default" onClick={this.handlePlayVideo}>Play</button>
+          <button className="btn btn-default" onClick={this.handlePauseVideo}>Pause</button>
           { this.state.isLoading ? 'Loading...' : 'Finished loading.' }
         </div>
         <div style={{ padding: '20px' }}>
@@ -369,15 +409,8 @@ export default class Home extends Component {
             ref={(input) => { this.video = input; }}
           />
           }
-          <button onClick={this.handlePlayVideo}>Play</button>
-          <button onClick={this.handlePauseVideo}>Pause</button>
         </div>
 
-        <button onClick={this.toggleBad}>Show Bad</button>
-        <button onClick={this.handleToggleBadForClip}>Good</button>
-        <button onClick={this.handleToggleBadForCurrentClip}>Bad</button>
-        { this.state.isShowingBad ? 'show bad' : 'show good'}
-        <pre>{JSON.stringify(this.state.currentClip, null, 2) }</pre>
         <Clips innerRef={(ref) => { this.div = ref; return ref; }}>
           <table>
             <tbody>
@@ -385,7 +418,8 @@ export default class Home extends Component {
                 {this.state.clips.map((clip, index) =>
                   <td key={clip.id}>
                     {clip.good &&
-                    <Clip
+                    <GoodClip
+                      good={clip.good}
                       tabindex={0 - index}
                       duration={clip.duration}
                       onClick={() => this.selectClip(clip)}
@@ -396,12 +430,13 @@ export default class Home extends Component {
                   </td>
                 )}
               </tr>
-              {this.state.isShowingBad &&
+              {this.state.isEditing &&
               <tr>
                 {this.state.clips.map((clip) =>
                   <td key={clip.id}>
                     {!clip.good &&
-                    <Clip
+                    <BadClip
+                      good={clip.good}
                       duration={clip.duration}
                       onClick={() => this.selectClip(clip)}
                       selected={this.state.currentClip && clip.id === this.state.currentClip.id}
@@ -413,6 +448,7 @@ export default class Home extends Component {
             </tbody>
           </table>
         </Clips>
+        <Line />
       </div>
     );
   }
