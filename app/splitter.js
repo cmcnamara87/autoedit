@@ -77,7 +77,7 @@ function getSliceCommand(startTime, endTime, inputFile, outputFile) {
     }
     duration = ` -t ${length}`;
   }
-  return `ffmpeg -nostdin ${seekStart} ${duration} -i "${inputFile}" -c:v libx264 -preset ultrafast -v warning -y ${outputFile}`;
+  return `ffmpeg -nostdin ${seekStart} ${duration} -i "${inputFile}" -c:v libx264 -preset ultrafast -v warning -y "${outputFile}"`;
 }
 
 function getStartsAndEnds(log) {

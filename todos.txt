@@ -1,0 +1,7 @@
+- remember what the last selected working folder was
+- and input folder
+- call loadClips after splitting and stitching on first load
+- add ability to change working folder / project folder
+- show some indication that its scanning the folders
+- fix showing clips when in editing mode
+- add selecting clips

@@ -21,7 +21,7 @@ function deleteFolderRecursive(folderPath) {
 function stitcher({
   inputFolder,
   tempFolder,
-  outputFolder
+  outputPath
 }) {
   return readVideosFromDir(inputFolder).then(files => {
     // clear temp files
@@ -31,10 +31,10 @@ function stitcher({
     // get temp file paths
     const outputPaths = files.map((path, index) => `${tempFolder}/${index}.ts`);
     // convert to temp files
-    const commands = files.map((path, index) => `ffmpeg -y -i "${path}" -c copy -bsf:v h264_mp4toannexb -f mpegts ${outputPaths[index]}`);
+    const commands = files.map((path, index) => `ffmpeg -y -i "${path}" -c copy -bsf:v h264_mp4toannexb -f mpegts "${outputPaths[index]}"`);
     return sequentiallyExecCommands(commands).then(() => {
       // join all the temp files together
-      const command = `ffmpeg -y -i "concat:${outputPaths.join('|')}" -c copy -bsf:a aac_adtstoasc "${outputFolder}/merged.mp4"`;
+      const command = `ffmpeg -y -i "concat:${outputPaths.join('|')}" -c copy -bsf:a aac_adtstoasc "${outputPath}"`;
       return promiseExec(command);
     });
   });

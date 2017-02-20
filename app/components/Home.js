@@ -3,50 +3,16 @@ import React, { Component } from 'react';
 // import styles from './Home.css';
 import fs from 'fs';
 import cuid from 'cuid';
-import styled from 'styled-components';
 import _ from 'lodash';
 import { remote } from 'electron';
 import './Home.css';
 import splitter from '../splitter';
 import stitcher from '../stitcher';
+import Timeline from './Timeline';
+import VideoPlayer from './VideoPlayer';
 
+const clipWidth = 70;
 
-const Clip = styled.a`
-  display: block;
-  height: 30px;
-  width: ${props => (props.duration / 1000) * 70}px;
-  padding: 20px;
-  cursor: pointer;
-  border-radius: 100px;
-  &:hover {
-    background-color: yellow;
-    text-decoration: none;
-  }
-`;
-const Line = styled.a`
-  height: 200px;
-  width: 1px;
-  background-color: red;
-  position: absolute;
-  left: 50%;
-  bottom: 0;
-`;
-const GoodClip = styled(Clip)`
-  background-color: ${props => (props.selected ? 'yellow' : '#4fc5ff')};
-`;
-const BadClip = styled(Clip)`
-  background-color: ${props => (props.selected ? 'yellow' : '#ffb426')};
-`;
-const Clips = styled.div`
-  border: 1px solid black;
-  width: ${window.innerWidth}px;
-  overflow: scroll;
-  position: absolute;
-  bottom: ${props => (props.top ? '100px' : 0)};
-  background-color: #333;
-  padding: 20px;
-  padding-left: 50%;
-`;
 
 export default class Home extends Component {
   static selectFolder() {
@@ -64,29 +30,31 @@ export default class Home extends Component {
     this.state = {
       clips: [],
       currentFile: '',
-      currentClip: null,
-      workingFolder: '/Users/craig/Desktop/temp2',
-      tab: 'output',
-      isEditing: false
+      workingFolder: '/Users/craig/Desktop/power scrubber temp',
+      isEditing: false,
+      selectedClip: null,
+      time: 0
     };
 
     this.handleOpenFolder = this.handleOpenFolder.bind(this);
     this.stitchClips = this.stitchClips.bind(this);
-    this.selectClip = this.selectClip.bind(this);
-    this.changeTab = this.changeTab.bind(this);
-    this.toggleBad = this.toggleBad.bind(this);
-    this.toggleReject = this.toggleReject.bind(this);
     this.loadClips = this.loadClips.bind(this);
     this.handlePlayVideo = this.handlePlayVideo.bind(this);
     this.handlePauseVideo = this.handlePauseVideo.bind(this);
-    this.handleScroll = this.handleScroll.bind(this);
-
+    this.handleScrollToTime = this.handleScrollToTime.bind(this);
+    this.handleClipClicked = this.handleClipClicked.bind(this);
+  }
+  componentDidMount() {
+    this.loadClips();
+    // this.div.addEventListener('scroll', this.handleScroll);
     document.addEventListener('keydown', (e) => {
       const keyCode = e.keyCode;
       if (keyCode === 69) { // e
         // go into edit
+        const isEditing = !this.state.isEditing;
         this.setState({
-          isEditing: !this.state.isEditing
+          isEditing,
+          clips: this.clips.filter(clip => (clip.good || isEditing)),
         });
         return;
       }
@@ -97,77 +65,83 @@ export default class Home extends Component {
           this.handlePlayVideo();
         }
       }
-
-      // Right: 39
-      if (keyCode === 39 && this.state.currentClip) {
-        const currentIndex = this.clips.indexOf(this.state.currentClip);
-        // get the next clips
-        const nextIndex = _.findIndex(this.clips, (clip, index) =>
-          index > currentIndex && (clip.good === true || this.state.isEditing)
-        );
-        this.setState({
-          currentClip: this.clips[nextIndex]
-        });
-      }
-      // Left: 37
-      if (keyCode === 37 && this.state.currentClip) {
-        const currentIndex = this.clips.indexOf(this.state.currentClip);
-        this.setState({
-          currentClip: this.clips[currentIndex - 1]
-        });
-      }
       // down
-      if (keyCode === 40 && this.state.currentClip) {
+      if (keyCode === 40 && this.state.selectedClip) {
         this.handleMoveDown();
       }
       // up
-      if (keyCode === 38 && this.state.currentClip) {
+      if (keyCode === 38 && this.state.selectedClip) {
         this.handleMoveUp();
       }
     }, false);
   }
-  componentDidMount() {
-    this.loadClips();
-    this.div.addEventListener('scroll', this.handleScroll);
-  }
+
   handlePlayVideo() {
-    this.div.removeEventListener('scroll', this.handleScroll);
     this.video.play();
     this.setState({
       isPlaying: true
     });
+    // if (this.state.selectedClip) {
+    // stop timer
+    console.log('starting');
     clearInterval(this.interval);
-    this.time = this.video.currentTime * 1000; // convert back to ms
+    // move timeline
+    // this.div.scrollLeft = this.state.selectedClip.startPos;
+    // reset video to start
+    // this.video.currentTime = 0;
+
+    // start the play timer
     this.interval = setInterval(() => {
-      this.time = this.time + 14;
-      // console.log(this.time);
-      // lets get out all the start and ends for good clips
-      const currentClip = _.find(this.clips, (clip) =>
-        clip.good && clip.startTime <= this.time && this.time <= clip.endTime
-      );
-      if (this.state.currentClip && currentClip && currentClip.id !== this.state.currentClip.id) {
-        this.div.scrollLeft = currentClip.startPos;
-        console.log('new clip', this.div.scrollLeft);
-      } else {
-        this.div.scrollLeft = this.div.scrollLeft + 1;
-        console.log('inc', this.div.scrollLeft);
-      }
-      console.log(currentClip);
       this.setState({
-        currentClip
+        time: this.state.time + (1000 / clipWidth)
       });
-    }, 14);
+      console.log('time', this.state.time);
+    }, 1000 / clipWidth);
   }
-  handleScroll() {
-    console.log('its scrolling!!!', this.div.scrollLeft / 70);
-    this.video.currentTime = this.div.scrollLeft / 70;
-    const currentClip = _.find(this.clips, (clip) =>
-      clip.good &&
-      clip.startPos <= this.div.scrollLeft &&
-      this.div.scrollLeft < clip.startPos + ((clip.duration / 1000) * 70)
-    );
+  handleScrollToTime(time) {
+    // if there is a selected clip...disabled scrubbing?
+    if (this.state.selectedClip) {
+      this.video.currentTime = 0;
+    } else {
+      this.video.currentTime = time / 1000;
+    }
     this.setState({
-      currentClip
+      time
+    });
+  }
+  handleMoveUp() {
+    // mutating state, bleh
+    const newFullPath = `${this.state.workingFolder}/good/${this.state.selectedClip.fileName}`;
+    fs.rename(
+      this.state.selectedClip.fullPath,
+      newFullPath,
+      () => {
+        this.stitchClips();
+      }
+    );
+
+    this.state.selectedClip.good = true;
+    this.state.selectedClip.fullPath = newFullPath;
+    this.setState({
+      clips: this.clips
+    });
+  }
+  handleMoveDown() {
+    // mutating state, bleh
+    const newFullPath = `${this.state.workingFolder}/bad/${this.state.selectedClip.fileName}`;
+    fs.rename(
+      this.state.selectedClip.fullPath,
+      newFullPath,
+      () => {
+        this.stitchClips();
+      }
+    );
+
+    this.state.selectedClip.good = false;
+    this.state.selectedClip.fullPath = newFullPath;
+    const currentIndex = this.state.clips.indexOf(this.state.selectedClip);
+    this.setState({
+      selectedClip: this.state.clips[currentIndex - 1]
     });
   }
   handlePauseVideo() {
@@ -177,44 +151,7 @@ export default class Home extends Component {
       isPlaying: false
     });
     this.video.pause();
-    this.div.addEventListener('scroll', this.handleScroll);
-  }
-  handleMoveUp() {
-    // mutating state, bleh
-    const newFullPath = `${this.state.workingFolder}/good/${this.state.currentClip.fileName}`;
-    fs.rename(
-      this.state.currentClip.fullPath,
-      newFullPath,
-      () => {
-        this.stitchClips();
-      }
-    );
-
-    this.state.currentClip.good = true;
-    this.state.currentClip.fullPath = newFullPath;
-    this.setState({
-      clips: this.clips
-    });
-  }
-  handleMoveDown() {
-    if (!this.state.isEditing) {
-      return;
-    }
-    // mutating state, bleh
-    const newFullPath = `${this.state.workingFolder}/bad/${this.state.currentClip.fileName}`;
-    fs.rename(
-      this.state.currentClip.fullPath,
-      newFullPath,
-      () => {
-        this.stitchClips();
-      }
-    );
-
-    this.state.currentClip.good = false;
-    this.state.currentClip.fullPath = newFullPath;
-    this.setState({
-      clips: this.clips,
-    });
+    // this.div.addEventListener('scroll', this.handleScroll);
   }
   loadClips() {
     fs.readdir(`${this.state.workingFolder}/good/`, (err, goodFiles) => {
@@ -244,10 +181,11 @@ export default class Home extends Component {
         // get all the durations
         console.log('clips', this.clips);
         const commands = this.clips.map(clip =>
-          `ffmpeg -i ${clip.fullPath} 2>&1 | grep Duration | awk '{print $2}' | tr -d ,`
+          `ffmpeg -i "${clip.fullPath}" 2>&1 | grep Duration | awk '{print $2}' | tr -d ,`
         );
         const sequentiallyExecCommands = remote.require('./exec').sequentiallyExecCommands;
         sequentiallyExecCommands(commands).then(data => {
+          console.log('data', data);
           this.clips = this.clips.map((clip, index) => {
             if (!data[index]) {
               console.log('no duration data');
@@ -256,6 +194,7 @@ export default class Home extends Component {
             const re = /(\d\d):(\d\d):(\d\d)\.(\d\d)/;
             const time = data[index].stdout;
             const matches = re.exec(time);
+            console.log('matches', matches, clip.fileName);
             const hours = matches[1] * 60 * 60 * 1000;
             const minutes = matches[2] * 60 * 1000;
             const seconds = matches[3] * 1000;
@@ -268,25 +207,10 @@ export default class Home extends Component {
           // this.setState({
           //   clips: this.clips
           // });
-          this.clips = this.clips.map((myClip, index) => {
-            const startTime = this.clips
-              .filter((clip, clipIndex) => clip.good && clipIndex < index)
-              .map(clip => clip.duration)
-              .reduce((a, b) => a + b, 0);
-            const startPos = (this.clips
-              .filter((clip, clipIndex) => clip.good && clipIndex < index)
-              .map(clip => clip.duration)
-              .reduce((a, b) => a + b, 0) / 1000) * 70;
-            const endTime = startTime + myClip.duration;
-            return Object.assign({}, myClip, {
-              startTime,
-              endTime,
-              startPos
-            });
-          });
+
 
           this.setState({
-            clips: this.clips
+            clips: this.clips.filter(clip => (clip.good || this.state.isEditing))
           });
           return data;
         }).catch(console.error);
@@ -322,66 +246,58 @@ export default class Home extends Component {
       });
     });
   }
-  toggleReject() {
-    const index = this.clips.indexOf(this.state.currentClip);
-    this.clips.splice(index, 1, Object.assign({},
-      this.state.currentClip, { good: !this.state.currentClip.good }
-    ));
-    this.setState({
-      clips: this.clips
-    });
-  }
-  toggleBad() {
-    const isEditing = !this.state.isEditing;
-    console.log('toggle bad');
-    this.setState({
-      isEditing
-    });
-  }
-  selectClip(clip) {
-    if (this.state.currentClip === clip) {
+  handleClipClicked(clip) {
+    // deselecting
+    if (this.state.selectedClip && this.state.selectedClip.id === clip.id) {
       this.setState({
-        currentClip: null,
-        tab: 'output'
+        selectedClip: null
       });
       return;
     }
+    // selecting
     this.setState({
-      currentClip: clip,
-      tab: 'clip'
-    });
-  }
-  changeTab(tab) {
-    this.setState({
-      tab
+      selectedClip: clip
     });
   }
 
   handleOpenFolder() {
-    return Home.selectFolder().then(folder => {
-      this.setState({
-        inputFolder: folder,
-        isLoading: true
-      });
-      splitter({
-        inputFolder: folder,
-        workingFolder: this.state.workingFolder
-      }).then((results) => {
+    return Home.selectFolder().then(inputFolder =>
+      Home.selectFolder().then(workingFolder => {
         this.setState({
-          isLoading: false
+          inputFolder,
+          workingFolder,
+          isLoading: true
         });
-        this.stitchClips();
-        return results;
-      }).catch(console.error);
-      return folder;
-    }).catch(console.error);
+        // split the clips
+        return splitter({
+          inputFolder,
+          workingFolder
+        }).then(() => {
+          this.setState({
+            isLoading: false
+          });
+          // stitch them
+          return this.stitchClips();
+        }).then(() => this.loadClips()
+        ).catch(console.error);
+      })
+    );
   }
   stitchClips() {
+    this.setState({
+      isLoading: true
+    });
     return stitcher({
       inputFolder: `${this.state.workingFolder}/good`,
       tempFolder: `${this.state.workingFolder}/temp`,
-      outputFolder: this.state.workingFolder
-    }).then(() => console.log('stiching is done!!!!'));
+      outputPath: `${this.state.workingFolder}/merged_good.mp4`
+    }).then(() => stitcher({
+      inputFolder: `${this.state.workingFolder}/all`,
+      tempFolder: `${this.state.workingFolder}/temp`,
+      outputPath: `${this.state.workingFolder}/merged_all.mp4`
+    })).then(() => this.setState({
+      isLoading: false
+    }));
   }
   render() {
     return (
@@ -394,61 +310,40 @@ export default class Home extends Component {
           <button className="btn btn-default" onClick={this.handlePauseVideo}>Pause</button>
           { this.state.isLoading ? 'Loading...' : 'Finished loading.' }
         </div>
-        <div style={{ padding: '20px' }}>
-          {this.state.tab === 'clip' &&
-          <video
-            controls
-            autoPlay
-            style={{ width: '100%' }} src={this.state.currentClip.fullPath}
+        <VideoPlayer />
+        <div style={{ padding: '20px', backgroundColor: this.state.selectedClip ? 'yellow' : 'black' }}>
+          {this.state.selectedClip &&
+          <div className="text-muted">selected clip<video
+            style={{ width: '100%' }} src={this.state.selectedClip.fullPath}
             ref={(input) => { this.video = input; }}
-          />
+          /></div>
           }
-          {this.state.tab === 'output' &&
-          <video
-            style={{ width: '100%' }} src={`${this.state.workingFolder}/merged.mp4`}
-            ref={(input) => { this.video = input; }}
-          />
+          {!this.state.selectedClip && !this.state.isLoading &&
+          <div className="text-muted">
+            output
+            <video
+              style={{ width: '100%' }}
+              src={this.state.isEditing ? `${this.state.workingFolder}/merged_all.mp4` : `${this.state.workingFolder}/merged_good.mp4`}
+              ref={(input) => { this.video = input; }}
+            />
+          </div>
+          }
+          {!this.state.selectedClip && this.state.isLoading &&
+          <div style={{ color: 'white' }}>
+            Re-creating the video
+          </div>
           }
         </div>
-
-        <Clips innerRef={(ref) => { this.div = ref; return ref; }}>
-          <table>
-            <tbody>
-              <tr>
-                {this.state.clips.map((clip, index) =>
-                  <td key={clip.id}>
-                    {clip.good &&
-                    <GoodClip
-                      good={clip.good}
-                      tabindex={0 - index}
-                      duration={clip.duration}
-                      onClick={() => this.selectClip(clip)}
-                      selected={this.state.currentClip && clip.id === this.state.currentClip.id}
-                      onKeyPress={() => console.log('hello world!!!')}
-                    />
-                    }
-                  </td>
-                )}
-              </tr>
-              {this.state.isEditing &&
-              <tr>
-                {this.state.clips.map((clip) =>
-                  <td key={clip.id}>
-                    {!clip.good &&
-                    <BadClip
-                      good={clip.good}
-                      duration={clip.duration}
-                      onClick={() => this.selectClip(clip)}
-                      selected={this.state.currentClip && clip.id === this.state.currentClip.id}
-                    />
-                    }
-                  </td>
-                )}
-              </tr>}
-            </tbody>
-          </table>
-        </Clips>
-        <Line />
+        <Timeline
+          time={this.state.time}
+          clipWidth={clipWidth}
+          clips={this.state.clips}
+          isEditing={this.state.isEditing}
+          selectedClip={this.state.selectedClip}
+          onClipClicked={this.handleClipClicked}
+          scrollEnabled={!this.state.isPlaying && !this.state.selectedClip}
+          onScrollToTime={this.handleScrollToTime}
+        />
       </div>
     );
   }
