@@ -100,11 +100,7 @@ export default class Home extends Component {
   }
   handleScrollToTime(time) {
     // if there is a selected clip...disabled scrubbing?
-    if (this.state.selectedClip) {
-      this.video.currentTime = 0;
-    } else {
-      this.video.currentTime = time / 1000;
-    }
+    this.video.currentTime = time / 1000;
     this.setState({
       time
     });
@@ -116,7 +112,7 @@ export default class Home extends Component {
       this.state.selectedClip.fullPath,
       newFullPath,
       () => {
-        this.stitchClips();
+        this.stitchGood();
       }
     );
 
@@ -133,15 +129,16 @@ export default class Home extends Component {
       this.state.selectedClip.fullPath,
       newFullPath,
       () => {
-        this.stitchClips();
+        this.stitchGood();
       }
     );
-
+    // TODO: fix this mutation of the selected clip
     this.state.selectedClip.good = false;
     this.state.selectedClip.fullPath = newFullPath;
     const currentIndex = this.state.clips.indexOf(this.state.selectedClip);
     this.setState({
-      selectedClip: this.state.clips[currentIndex - 1]
+      selectedClip: this.state.clips[currentIndex - 1],
+      clips: this.clips.filter(clip => (clip.good || this.state.isEditing)),
     });
   }
   handlePauseVideo() {
@@ -283,19 +280,25 @@ export default class Home extends Component {
       })
     );
   }
-  stitchClips() {
-    this.setState({
-      isLoading: true
+  stitchAll() {
+    return stitcher({
+      inputFolder: `${this.state.workingFolder}/all`,
+      tempFolder: `${this.state.workingFolder}/temp`,
+      outputPath: `${this.state.workingFolder}/merged_all.mp4`
     });
+  }
+  stitchGood() {
     return stitcher({
       inputFolder: `${this.state.workingFolder}/good`,
       tempFolder: `${this.state.workingFolder}/temp`,
       outputPath: `${this.state.workingFolder}/merged_good.mp4`
-    }).then(() => stitcher({
-      inputFolder: `${this.state.workingFolder}/all`,
-      tempFolder: `${this.state.workingFolder}/temp`,
-      outputPath: `${this.state.workingFolder}/merged_all.mp4`
-    })).then(() => this.setState({
+    });
+  }
+  stitchClips() {
+    this.setState({
+      isLoading: true
+    });
+    return this.stitchGood().then(() => this.stitchAll()).then(() => this.setState({
       isLoading: false
     }));
   }
@@ -312,13 +315,7 @@ export default class Home extends Component {
         </div>
         <VideoPlayer />
         <div style={{ padding: '20px', backgroundColor: this.state.selectedClip ? 'yellow' : 'black' }}>
-          {this.state.selectedClip &&
-          <div className="text-muted">selected clip<video
-            style={{ width: '100%' }} src={this.state.selectedClip.fullPath}
-            ref={(input) => { this.video = input; }}
-          /></div>
-          }
-          {!this.state.selectedClip && !this.state.isLoading &&
+          {!this.state.isLoading &&
           <div className="text-muted">
             output
             <video
@@ -328,7 +325,7 @@ export default class Home extends Component {
             />
           </div>
           }
-          {!this.state.selectedClip && this.state.isLoading &&
+          {this.state.isLoading &&
           <div style={{ color: 'white' }}>
             Re-creating the video
           </div>
@@ -341,7 +338,7 @@ export default class Home extends Component {
           isEditing={this.state.isEditing}
           selectedClip={this.state.selectedClip}
           onClipClicked={this.handleClipClicked}
-          scrollEnabled={!this.state.isPlaying && !this.state.selectedClip}
+          scrollEnabled={!this.state.isPlaying}
           onScrollToTime={this.handleScrollToTime}
         />
       </div>
